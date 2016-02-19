@@ -2836,6 +2836,95 @@ class upload {
     }
 
 
+    //fix orientation for ipad/iphones/etc
+    /**
+    * Simple function that takes a gd image resource and the flip mode, and uses rotate 180 instead to do the same thing... Simples!
+    */     
+    function imageflip($resource, $mode) {
+      
+      if($mode == 2 || $mode == 3)
+        $resource = imagerotate($resource, 180, 0);
+      
+      if($mode == 1 || $mode == 3)
+        $resource = imagerotate($resource, 90, 0);
+         
+      return $resource;
+    }
+    
+    function fix_orientation($fileandpath, $img_res) {
+    		
+      // Get all the exif data from the file
+      $exif = read_exif_data($fileandpath, 'IFD0');
+       
+      // If we dont get any exif data at all, then we may as well stop now
+      if(!$exif || !is_array($exif))
+        return $img_res;
+      // I hate case juggling, so we're using loweercase throughout just in case
+      $exif = array_change_key_case($exif, CASE_LOWER);
+      
+      // If theres no orientation key, then we can give up, the camera hasn't told us the 
+      // orientation of itself when taking the image, and i'm not writing a script to guess at it!
+      if(!array_key_exists('orientation', $exif)) 
+        return $img_res;
+      
+      // If it failed to load a resource, give up
+      if(is_null($img_res))
+        return $img_res;
+      
+      // The meat of the script really, the orientation is supplied as an integer, 
+      // so we just rotate/flip it back to the correct orientation based on what we 
+      // are told it currently is 
+      switch($exif['orientation']) {
+        
+        // Standard/Normal Orientation (no need to do anything, we'll return true as in theory, it was successful)
+        case 1: return $img_res; break;
+        
+        // Correct orientation, but flipped on the horizontal axis (might do it at some point in the future)
+        case 2: 
+          $final_img = imageflip($img_res, 1);
+        break;
+        
+        // Upside-Down
+        case 3: 
+          $final_img = imageflip($img_res, 2);
+        break;
+        
+        // Upside-Down & Flipped along horizontal axis
+        case 4:  
+          $final_img = imageflip($img_res, 3);
+        break;
+        
+        // Turned 90 deg to the left and flipped
+        case 5:  
+          $final_img = imagerotate($img_res, -90, 0);
+          $final_img = imageflip($img_res, 1);
+        break;
+        
+        // Turned 90 deg to the left
+        case 6: 
+          $final_img = imagerotate($img_res, -90, 0);
+        break;
+        
+        // Turned 90 deg to the right and flipped
+        case 7: 
+          $final_img = imagerotate($img_res, 90, 0);
+          $final_img = imageflip($img_res,1);
+        break;
+        
+        // Turned 90 deg to the right
+        case 8: 
+          $final_img = imagerotate($img_res, 90, 0); 
+        break;
+        
+      }
+      
+      // If theres no final image resource to output for whatever reason, give up
+      if(!isset($final_img))
+        return $img_res;
+      
+      return $final_img;
+    }
+
 
     /**
      * Actually uploads the file, and act on it according to the set processing class variables
@@ -3321,6 +3410,9 @@ class upload {
                 }
 
                 if ($this->processed && $image_src) {
+                    
+            		//fix orientation for ipad/iphones/etc
+            		$image_src = $this->fix_orientation($this->file_src_pathname, $image_src);
 
                     // we have to set image_convert if it is not already
                     if (empty($this->image_convert)) {
